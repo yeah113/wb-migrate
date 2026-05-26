@@ -1,0 +1,6 @@
+interface:
+  display_name: "WorkBuddy Migrate"
+  short_description: "备份、恢复并跨账号/跨设备迁移 WorkBuddy 数据"
+  default_prompt: "Use $wb-migrate to back up, restore, or migrate WorkBuddy data across accounts and devices safely."
+policy:
+  allow_implicit_invocation: true
