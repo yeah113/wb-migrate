@@ -138,18 +138,22 @@ python3 ... switch --to <USER_ID> --report-file ./switch-report.json
 
 ### Windows 用法
 ```bat
-wb-migrate.bat compat
-wb-migrate.bat selftest
-wb-migrate.bat accounts
-wb-migrate.bat switch --to <USER_ID> --dry-run
-wb-migrate.bat backup -o D:\Backup
-wb-migrate.bat restore "D:\Backup\wb-backup-xxx.tar.gz" --conflict merge --auto-map
+REM PY = %USERPROFILE%\.workbuddy\skills\wb-migrate\scripts\wb.py
+python %USERPROFILE%\.workbuddy\skills\wb-migrate\scripts\wb.py compat
+python %USERPROFILE%\.workbuddy\skills\wb-migrate\scripts\wb.py selftest
+python %USERPROFILE%\.workbuddy\skills\wb-migrate\scripts\wb.py accounts
+python %USERPROFILE%\.workbuddy\skills\wb-migrate\scripts\wb.py switch --to <USER_ID> --dry-run
+python %USERPROFILE%\.workbuddy\skills\wb-migrate\scripts\wb.py backup -o D:\Backup
+python %USERPROFILE%\.workbuddy\skills\wb-migrate\scripts\wb.py restore "D:\Backup\wb-backup-xxx.tar.gz" --conflict merge --auto-map
 ```
-> `.bat` 已处理：UTF-8 代码页、解释器探测（python → python3 → py -3）、退出码透传。
-> 恢复前必须完全退出 WorkBuddy（含托盘图标），否则 Windows 下 `workbuddy.db` 被占用无法替换。
+> `scripts/wb.py` 是三端统一入口：检查 Python 3.9+（过低时自动探测 python3 → python → py -3 重启）、
+> 强制 UTF-8 输出、参数与退出码原样透传。macOS / Linux 同样用它：`python3 scripts/wb.py <命令>`。
+>
+> 恢复前必须完全退出 WorkBuddy（含托盘图标），否则 Windows 下 `workbuddy.db` 被占用无法替换；
+> 不想手动退出就用下面的 `wb_auto.py`。
 
-# Windows 入口见 skill 根目录 wb-migrate.bat
-# 也可直接调用解释器: python %USERPROFILE%\.workbuddy\skills\wb-migrate\scripts\wb_migrate.py scan
+> SkillHub 分发的技能包只含 `.md` / `.py` / `.yaml` / `.json`，**不含 `wb-migrate.bat` / `wb-migrate.sh`**
+> （市场不接受 `.bat`）。这两个文件仅 GitHub 仓库版附带，功能与 `wb.py` 等价。
 
 ### 16. 免手动自动恢复（v3.3.0 · Windows 推荐）
 
@@ -375,7 +379,7 @@ wb-migrate restore ~/Desktop/wb-backup-*.tar.gz --auto-map
 ### 跨设备迁移（macOS → Windows）
 ```bash
 # macOS: wb-migrate backup --output ~/Desktop
-# 传输后 Windows: wb-migrate.bat restore D:\backup.tar.gz --auto-map
+# 传输后 Windows: python %USERPROFILE%\.workbuddy\skills\wb-migrate\scripts\wb.py restore D:\backup.tar.gz --auto-map
 ```
 
 ### 仅迁移技能与记忆

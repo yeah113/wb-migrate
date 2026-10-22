@@ -2,11 +2,11 @@
 
 > 适配国内版 WorkBuddy **5.6 – 5.9**（本机 5.9.0 实测）；支持全量与按模块选择性导出、三种冲突策略、自动快照回滚、敏感信息脱敏、跨平台（macOS / Windows / Linux）迁移、断点续传；兼容读取 v1/v2 旧备份包。
 >
-> **v3.3 新增**：`experts` 模块补齐 `plugins/cache/experts`（5.9 专家实体的真实存放位置）并新增插件注册表合并；新增 `scripts/wb_auto.py` —— Windows 免手动自动恢复（注册看门狗，退出 WorkBuddy 即自动恢复、结束后自动重开）；Windows 编码与不可读文件加固。
+> **v3.3 新增**：`experts` 模块补齐 `plugins/cache/experts`（5.9 专家实体的真实存放位置）并新增插件注册表合并；新增 `scripts/wb_auto.py` —— Windows 免手动自动恢复（注册看门狗，退出 WorkBuddy 即自动恢复、结束后自动重开）；新增跨平台启动器 `scripts/wb.py`（三端统一入口）；Windows 编码与不可读文件加固。
 >
 > **v3.2 新增**：同设备多账号切换（`accounts` / `switch`）——按账号维度隔离存储，切走即切片、切回即还原，支持三种同名配置策略与三种数据库模式，切换前自动备份、失败自动回滚。
 >
-> Windows 专项：`wb-migrate.bat` 已处理代码页/编码/解释器探测/退出码；`compat` 输出环境兼容性报告，`selftest` 在任意平台跑 18 项端到端一致性用例。
+> 入口：三端统一 `python3 scripts/wb.py <命令>`（自动检查 Python 3.9+、强制 UTF-8、原样透传参数与退出码）。仓库版另附 `wb-migrate.sh` / `wb-migrate.bat` 两个薄封装，**SkillHub 分发包不含它们**（市场不接受 `.bat`）。`compat` 输出环境兼容性报告，`selftest` 在任意平台跑 18 项端到端一致性用例。
 
 ---
 
@@ -63,7 +63,7 @@ python3 $PY rollback --list                         # 列出可回滚记录
 python3 $PY rollback --latest                       # 撤销最近一次恢复
 ```
 
-macOS/Linux 可用 `wb-migrate.sh`，Windows 用 `wb-migrate.bat`（均为参数透传）。
+入口统一用 `python3 scripts/wb.py <命令>`，macOS / Windows / Linux 同一条命令（`wb.py` 只做解释器检查、编码兜底与参数透传）。仓库版另附 `wb-migrate.sh` / `wb-migrate.bat` 两个薄封装，功能等价，**SkillHub 分发的技能包不含这两个文件**。
 
 ---
 
@@ -448,7 +448,7 @@ rollback --prune --keep 5       # 清理历史快照（默认保留 5 个）
 | **只读属性 / ACL** | 目标文件只读时 `os.replace` 会抛 `PermissionError` | 少见 | `ensure_writable()` 前置提升；`rmtree_safe()` 带 `onerror` 回调重试 |
 | **符号链接 / junction** | 创建链接需要权限，提取会失败 | 可创建 | 打包时跳过符号链接目录与断链（链接文件按真实内容入库）；解包成员含链接/设备时直接拒绝 |
 | **文件被占用** | WorkBuddy 运行时会锁住 `workbuddy.db`，替换必然失败 | SQLite WAL 较为宽容 | `restore` 前调用 `check_app_running()`：Windows 上（tasklist）**直接中断并提示退出托盘**，其他平台 WARN |
-| **脚本 / 命令行调用** | `wb-migrate.bat`（或 `python wb_migrate.py` / `py -3`） | `wb-migrate.sh`（或 `python3`） | 见下方"Windows 使用说明"；两个入口都支持参数透传与退出码透传 |
+| **脚本 / 命令行调用** | `python scripts\wb.py`（或 `python wb_migrate.py` / `py -3`） | `python3 scripts/wb.py`（或 `python3 wb_migrate.py`） | 见下方"Windows 使用说明"；`wb.py` 自带参数透传与退出码透传，三端同一条命令 |
 | **依赖安装** | 无需任何依赖 | 同 | 仅标准库；任何时候都**不需要** `pip install` |
 | **临时目录 / 原子写入** | `%TEMP%`，与工作目录可能不同盘 | `/tmp` | 统一用 `tempfile.mkdtemp()`；临时文件名截断到 60 字符（`_wb_tmp()`）控制在 MAX_PATH 内；`.part` + `os.replace` 原子落盘 |
 | **OS 专有特性** | 不使用 | 不使用 | 代码中无 `fcntl` / `pwd` / `grp` / `termios` / `os.getuid` / `pty` / shell 外部命令，仅跨平台 `subprocess`（且全部包在异常兜底里） |
@@ -461,23 +461,30 @@ REM ① 安装 Python 3.9+ (python.org 或 Microsoft Store), 无需任何第三�
 REM    python --version   应显示 3.9 及以上
 
 REM ② 环境兼容性自检 (推荐每台新机器先跑一次)
-wb-migrate.bat compat
+python %USERPROFILE%\.workbuddy\skills\wb-migrate\scripts\wb.py compat
 
 REM ③ 端到端一致性自检 (18 项用例, 秒级)
-wb-migrate.bat selftest
+python %USERPROFILE%\.workbuddy\skills\wb-migrate\scripts\wb.py selftest
 
 REM ④ 备份 (注意: 全局参数必须放在子命令之前)
-wb-migrate.bat backup -o D:\Backup
+python %USERPROFILE%\.workbuddy\skills\wb-migrate\scripts\wb.py backup -o D:\Backup
 
 REM ⑤ 恢复前务必完全退出 WorkBuddy (含托盘图标), 然后:
-wb-migrate.bat restore D:\Backup\wb-backup-xxx.tar.gz --conflict merge --auto-map
-wb-migrate.bat rollback --latest          REM 结果不符预期时撤销
+python %USERPROFILE%\.workbuddy\skills\wb-migrate\scripts\wb.py restore D:\Backup\wb-backup-xxx.tar.gz --conflict merge --auto-map
+python %USERPROFILE%\.workbuddy\skills\wb-migrate\scripts\wb.py rollback --latest
+```
+
+嫌路径长就先设个别名（PowerShell，写进 `$PROFILE` 永久生效）：
+
+```powershell
+Set-Alias wbm "$env:USERPROFILE\.workbuddy\skills\wb-migrate\scripts\wb.py"
+wbm compat
 ```
 
 说明与注意事项：
 
-- **解释器**：`.bat` 依次探测 `python` → `python3` → `py -3`，找不到会给出安装指引并返回退出码 3。
-- **编码**：`.bat` 内置 `chcp 65001`、`PYTHONIOENCODING=utf-8`、`PYTHONUTF8=1`；PowerShell 用户如仍乱码，
+- **解释器**：`wb.py` 会在版本不足 3.9 时依次探测 `python3` → `python` → `py -3` 自动重启自己；全都没有时给出安装指引并返回退出码 1。
+- **编码**：`wb.py` 强制 `stdout/stderr` 走 UTF-8 + `errors=replace`，中文路径与日志不会中断迁移；PowerShell 用户如仍乱码，
   可先执行 `[Console]::OutputEncoding=[Text.Encoding]::UTF8`。
 - **退出码**：`0` 成功 / `1` 错误 / `2` 校验失败（包被拒绝，未写入任何数据）/ `3` 权限不足 / `4` 用户中断。
 - **不要以管理员运行**：会改变 `USERPROFILE` 指向的对象，导致备份/恢复的目标目录不是日常使用的那个。
@@ -503,7 +510,7 @@ python wb-migrate\scripts\wb_auto.py cancel
 ```
 
 - 需要 Python 3.9+；计划任务用当前用户身份注册，**不需要管理员**。
-- 恢复仍在原有回滚机制之内：出错可 `wb-migrate.bat rollback --latest`。
+- 恢复仍在原有回滚机制之内：出错可 `python scripts\wb.py rollback --latest`。
 - `__watch` 是计划任务调用的内部入口，不要手动执行。
 - macOS / Linux 不需要本脚本，退出 WorkBuddy 后直接 `restore` 即可（无进程锁）。
 
@@ -592,9 +599,10 @@ wb-migrate/
 ├── agents/openai.yaml          # 可选 UI 元数据
 ├── scripts/
 │   ├── wb_migrate.py           # 核心引擎 (单文件, 仅标准库, Python 3.9+)
-│   └── wb_auto.py              # Windows 免手动自动恢复编排器 (看门狗 + 自动重开)
-├── wb-migrate.sh               # macOS/Linux 入口 (exec 透传)
-└── wb-migrate.bat              # Windows 入口
+│   ├── wb_auto.py              # Windows 免手动自动恢复编排器 (看门狗 + 自动重开)
+│   └── wb.py                   # 跨平台启动器 (解释器检查 + UTF-8 兜底 + 参数透传)
+├── wb-migrate.sh               # [仓库版] macOS/Linux 薄封装, SkillHub 分发包不含
+└── wb-migrate.bat              # [仓库版] Windows 薄封装, SkillHub 分发包不含
 ```
 
 引擎分区（单文件内按区块组织）：
@@ -704,7 +712,7 @@ python3 ~/.workbuddy/skills/wb-migrate/scripts/wb_migrate.py scan
 
 - 依赖：Python 3.9+（仅标准库）；**无需 pip install 任何包**
 - 平台：macOS 12+ / Windows 10 1809+ / Linux（详见[环境兼容性](#环境兼容性)）
-- Windows：用 `wb-migrate.bat`（自动处理代码页、解释器探测与退出码）
+- Windows：`python %USERPROFILE%\.workbuddy\skills\wb-migrate\scripts\wb.py <命令>`（自动处理编码、解释器探测与退出码）；`wb-migrate.bat` 仅仓库版附带
 - 升级覆盖安装即可，旧备份包 (v1/v2) 仍可恢复
 - 新机器建议先跑：`wb-migrate compat` 与 `wb-migrate selftest`
 
@@ -736,7 +744,7 @@ python3 ~/.workbuddy/skills/wb-migrate/scripts/wb_migrate.py scan
 
 | 版本 | 变更 |
 |------|------|
-| v3.3.0 | **专家模块与免手动恢复**：`experts` 模块补齐 `plugins/cache/experts`（5.9 起专家实体全部在此，原先只写 `experts` 会漏 100% 的专家），同时纳入 `plugins/marketplaces/experts`、`plugins/marketplaces/my-experts`，新增 `plugins/installed_plugins.json` / `configured-plugins.json` / `known_marketplaces.json` 注册表文件，并把 `.in_use`、`.downloaded_at` 列为机器态排除；新增 `scripts/wb_auto.py`（Windows 免手动自动恢复：注册 `schtasks` 看门狗 → 轮询进程消失 → 句柄释放后自动 restore → 合并专家插件注册表 → 可选 `--relaunch` 重开 → 自删任务，全程写日志）；Windows 控制台强制 UTF-8（`errors=replace`），中文路径/日志不再因 GBK 编解码中断迁移 |
+| v3.3.0 | **专家模块与免手动恢复**：`experts` 模块补齐 `plugins/cache/experts`（5.9 起专家实体全部在此，原先只写 `experts` 会漏 100% 的专家），同时纳入 `plugins/marketplaces/experts`、`plugins/marketplaces/my-experts`，新增 `plugins/installed_plugins.json` / `configured-plugins.json` / `known_marketplaces.json` 注册表文件，并把 `.in_use`、`.downloaded_at` 列为机器态排除；新增 `scripts/wb_auto.py`（Windows 免手动自动恢复：注册 `schtasks` 看门狗 → 轮询进程消失 → 句柄释放后自动 restore → 合并专家插件注册表 → 可选 `--relaunch` 重开 → 自删任务，全程写日志）；Windows 控制台强制 UTF-8（`errors=replace`），中文路径/日志不再因 GBK 编解码中断迁移；新增跨平台启动器 `scripts/wb.py`（三端统一入口：Python 版本检查 + 自动换解释器重启、UTF-8 兜底、参数与退出码透传），SkillHub 分发包不再携带 `.bat` / `.sh`（市场不接受 `.bat`）|
 | v3.2.0 | **新增同设备多账号切换**：`accounts` / `switch` 命令；按账号隔离区存储（data/shared/db-rows）；三种同名配置策略（keep/overwrite/merge）+ 三种数据库模式（keep/merge/stash）；切换前自动备份、失败自动回滚、`switch-report.json` 报告；账号识别多源聚合（强/弱信号目录 + DB + 隔离区）；当前账号判定支持切换记录与文件 mtime；`selftest` 扩至 18 项（新增 C16/C17/C18）；统一 `_mkdir` 走 `fs_path` 规避 Windows 长路径 |
 | v3.1.0 | 环境兼容性：支持矩阵 5.6–5.9 与 Windows 10 1809+；版本检测三路兜底；Windows 适配层（长路径前缀/保留名净化/大小写不敏感兜底/只读提升/统一 LF/运行占用检测）；新增 `compat` 命令与 `selftest` 15 项用例；修正 5.9 机器态排除项与异 OS 工作区路径误建 |
 | v3.0.0 | 结构化备份包 v3（manifest + checksums + database/ + modules/）、12 模块、三冲突策略、回滚日志、脱敏、进度日志与断点续传 |
